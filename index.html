@@ -126,6 +126,21 @@ const PLAYS=[
  {name:'PLAY 18',desc:'X & Y quick out · C corner · Z reverse achter de QB',f:{Q:[-5.2,12.4],X:[0,5.1,[[3.9,5.1],[3,6.6]],1],C:[0,12.4,[[3.5,12.4],[5.3,16.4]],1],Y:[0,15.7,[[3.9,15.7],[3,17.2]],1],Z:[0,19.6,[[-2.5,17.5],[-5.4,12.6],[-4.6,8],[-2.4,3.7]],1]}}
 ];
 const AUD=[6,10,0];
+// ---- Play Maker: 3 eigen plays, bewaard in deze browser
+const CUSTOM_KEY='flagrush-eigen-plays',EX0=500,EY0=160,EPY=24;
+function blankCustom(n){return {name:'EIGEN PLAY '+n,custom:true,empty:true,desc:'',f:{Q:[-4,12.5,[]],C:[0,12.5,[],1],X:[0,3,[],1],Y:[0,8,[],1],Z:[0,22,[],1]}};}
+function customDesc(p){return (p.h?'Run met handoff naar '+p.h:'Passplay')+' · eigen ontwerp';}
+function loadCustoms(){
+  let saved=[];try{saved=JSON.parse(localStorage.getItem(CUSTOM_KEY)||'[]')||[];}catch(e){saved=[];}
+  for(let n=1;n<=3;n++){const sv=saved[n-1],p=blankCustom(n);
+    if(sv&&sv.f){p.f=sv.f;p.h=sv.h||null;p.run=p.h?1:0;p.empty=false;p.desc=customDesc(p);}
+    PLAYS.push(p);}
+}
+function saveCustoms(){
+  try{localStorage.setItem(CUSTOM_KEY,JSON.stringify(PLAYS.filter(p=>p.custom).map(p=>p.empty?null:{f:p.f,h:p.h||null})));}
+  catch(e){toast('Opslaan lukt niet in deze browser');}
+}
+loadCustoms();
 const COVERS=[
  {id:'man',name:'MAN',desc:'Iedereen een eigen man, één rusher. Sterk tegen korte routes.',m:[0,1,2,3,null],z:[null,null,null,null,null],r:[0,0,0,0,1]},
  {id:'c2',name:'COVER 2',desc:'Twee diep, twee in de flats, één rusher. Gat in het midden.',m:[null,null,null,null,null],z:[{d:5,y:4,R:6},{d:5,y:21,R:6},{d:14,y:18,R:9,deep:1},{d:14,y:7,R:9,deep:1},null],r:[0,0,0,0,1]},
@@ -155,8 +170,8 @@ document.getElementById('fs').addEventListener('click',e=>{toggleFS();e.currentT
 
 /* ---------- input ---------- */
 const keys={};
-const KM={Space:'X',Enter:'X',NumpadEnter:'X',Digit1:'X',Numpad1:'X',Digit2:'O',Numpad2:'O',KeyE:'O',Backspace:'O',Digit3:'SQ',Numpad3:'SQ',KeyQ:'SQ',Digit4:'TRI',Numpad4:'TRI',KeyW:'TRI',Digit5:'R1',Numpad5:'R1',KeyR:'R1',ShiftLeft:'R2',ShiftRight:'R2',Tab:'L1',KeyC:'R3',Escape:'OPT',KeyP:'OPT',ArrowUp:'UP',ArrowDown:'DOWN',ArrowLeft:'LEFT',ArrowRight:'RIGHT'};
-const BI={X:0,O:1,SQ:2,TRI:3,L1:4,R1:5,R2:7,OPT:9,R3:11,UP:12,DOWN:13,LEFT:14,RIGHT:15};
+const KM={Space:'X',Enter:'X',NumpadEnter:'X',Digit1:'X',Numpad1:'X',Digit2:'O',Numpad2:'O',KeyE:'O',Backspace:'O',Digit3:'SQ',Numpad3:'SQ',KeyQ:'SQ',Digit4:'TRI',Numpad4:'TRI',KeyW:'TRI',Digit5:'R1',Numpad5:'R1',KeyR:'R1',ShiftLeft:'R2',ShiftRight:'R2',Tab:'L1',KeyH:'L2',KeyC:'R3',Escape:'OPT',KeyP:'OPT',ArrowUp:'UP',ArrowDown:'DOWN',ArrowLeft:'LEFT',ArrowRight:'RIGHT'};
+const BI={X:0,O:1,SQ:2,TRI:3,L1:4,R1:5,L2:6,R2:7,OPT:9,R3:11,UP:12,DOWN:13,LEFT:14,RIGHT:15};
 const BK=Object.keys(BI);
 const I={mode:'none',padIndex:null,padId:'',connected:false,held:{},pressed:{},released:{},ht:{},lx:0,ly:0,rx:0,ry:0,navX:0,navY:0,ndx:0,ndy:0,nrx:0,nry:0,tap:false};
 addEventListener('keydown',e=>{
@@ -165,7 +180,11 @@ addEventListener('keydown',e=>{
 });
 addEventListener('keyup',e=>{const b=KM[e.code]; if(b){keys[b]=false;e.preventDefault();}});
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
-cv.addEventListener('pointerdown',()=>{I.tap=true; if(I.mode==='none')I.mode='kb'; cv.focus();});
+cv.addEventListener('pointerdown',e=>{
+  if(G.editor){const rc=cv.getBoundingClientRect(),px=(e.clientX-rc.left)/rc.width*W,py=(e.clientY-rc.top)/rc.height*H;
+    if(px<EX0||px>EX0+25*EPY||py<EY0||py>EY0+24*EPY){cv.focus();return;}
+    I.ptr={l:(px-EX0)/EPY,d:16-(py-EY0)/EPY};}
+  I.tap=true; if(I.mode==='none')I.mode='kb'; cv.focus();});
 addEventListener('gamepadconnected',e=>{I.padIndex=e.gamepad.index;I.padId=e.gamepad.id;I.mode='pad';toast('Controller verbonden');rumble(180,0.3,0.6);});
 addEventListener('gamepaddisconnected',e=>{
   if(e.gamepad.index===I.padIndex){I.padIndex=null;toast('Controller losgekoppeld');
@@ -285,7 +304,7 @@ function buildDefense(cov,off){
 }
 const noRun=()=>G.isPAT||G.los>=45;
 const playAllowed=i=>!(PLAYS[i].h&&noRun());
-function cpuPickPlay(){const o=PLAYS.map((p,i)=>i).filter(playAllowed); return o[Math.floor(Math.random()*o.length)];}
+function cpuPickPlay(){const o=PLAYS.map((p,i)=>i).filter(i=>!PLAYS[i].custom&&playAllowed(i)); return o[Math.floor(Math.random()*o.length)];}
 function cpuPickCover(){const r=Math.random(); if((G.down>=3&&r<0.3)||r<0.1) return COVERS[4]; return COVERS[Math.floor(Math.random()*4)];}
 
 /* ---------- flow ---------- */
@@ -582,6 +601,116 @@ function updateFX(dt){
   for(let i=POPS.length-1;i>=0;i--){POPS[i].t+=dt;if(POPS[i].t>0.9)POPS.splice(i,1);}
 }
 
+
+/* ---------- Play Maker ---------- */
+const EIDS=['Q','C','X','Y','Z'],ENAME={Q:'Quarterback',C:'Center',X:'X-receiver',Y:'Y-receiver',Z:'Z-receiver'};
+const ex=l=>EX0+l*EPY,ey=d=>EY0+(16-d)*EPY;
+function openEditor(idx){const p=PLAYS[idx];G.editor={idx,f:JSON.parse(JSON.stringify(p.f)),h:p.h||null,sel:'X',mode:'route',cx:12.5,cy:4,menu:false,menuSel:0};rumble(60,0,0.3);}
+function eRoute(E,id){return id==='Q'?E.f.Q[2]:E.f[id][2];}
+function editorUpdate(dt){
+  const E=G.editor;
+  if(E.menu){
+    if(I.navY)E.menuSel=(E.menuSel+I.navY+3)%3;
+    if(I.pressed.O||I.pressed.OPT){E.menu=false;return;}
+    if(I.pressed.X){
+      const p=PLAYS[E.idx],n=E.idx-PLAYS.findIndex(q=>q.custom)+1;
+      if(E.menuSel===0){p.f=E.f;p.h=E.h;p.run=E.h?1:0;p.empty=false;p.desc=customDesc(p);saveCustoms();G.editor=null;G.sel=E.idx;toast(p.name+' opgeslagen');}
+      else if(E.menuSel===1){G.editor=null;}
+      else{const b=blankCustom(n);Object.assign(p,{f:b.f,h:null,run:0,empty:true,desc:''});saveCustoms();G.editor=null;toast(p.name+' leeggemaakt');}
+    }
+    return;
+  }
+  if(I.pressed.OPT){E.menu=true;E.menuSel=0;return;}
+  const sp=I.held.R2?16:7;
+  E.cx=clamp(E.cx+I.lx*sp*dt,0.5,24.5);E.cy=clamp(E.cy-I.ly*sp*dt,-8,16);
+  if(I.ptr){E.cx=clamp(I.ptr.l,0.5,24.5);E.cy=clamp(I.ptr.d,-8,16);I.ptr=null;}
+  const l=Math.round(E.cx*2)/2,d=Math.round(E.cy*2)/2;
+  if(I.pressed.L1||I.pressed.R1){const i=EIDS.indexOf(E.sel);E.sel=EIDS[(i+(I.pressed.R1?1:-1)+5)%5];}
+  if(I.pressed.SQ){E.mode=E.mode==='pos'?'route':'pos';}
+  if(I.pressed.X){
+    const hit=EIDS.find(id=>hyp(E.f[id][1]-l,E.f[id][0]-d)<0.8);
+    if(hit&&hit!==E.sel){E.sel=hit;}
+    else if(E.mode==='pos'){
+      const id=E.sel,o=E.f[id];let nd=id==='C'?0:id==='Q'?Math.min(d,-1):Math.min(d,0);nd=Math.max(nd,-8);
+      const dd=nd-o[0],dl=l-o[1];o[0]=nd;o[1]=l;
+      eRoute(E,id).forEach(pt=>{pt[0]=clamp(pt[0]+dd,-8,16);pt[1]=clamp(pt[1]+dl,0.5,24.5);});
+      if(id==='C'&&d!==0)toast('De center staat altijd op de line of scrimmage');
+    } else {
+      const rt=eRoute(E,E.sel);
+      if(rt.length>=6)toast('Maximaal 6 punten per route');
+      else if(E.sel==='Q'&&d>-0.5)toast('De QB mag niet over de line of scrimmage');
+      else rt.push([d,l]);
+    }
+  }
+  if(I.pressed.O){const rt=eRoute(E,E.sel);if(rt.length)rt.pop();}
+  if(I.pressed.TRI&&E.sel!=='Q'){const o=E.f[E.sel];o[3]=o[3]===0?1:0;}
+  if(I.pressed.L2&&E.sel!=='Q'){E.h=E.h===E.sel?null:E.sel;toast(E.h?'Run: handoff naar '+E.h:'Passplay: geen handoff');}
+}
+function drawEditor(){
+  const E=G.editor,l=Math.round(E.cx*2)/2,d=Math.round(E.cy*2)/2,FW=25*EPY,FH=24*EPY;
+  ctx.fillStyle=C.night;ctx.fillRect(0,0,W,H);
+  ls('4px');txt('PLAY MAKER',60,82,'italic 800 50px '+FD,C.chalk,'left');ls('0px');
+  ls('3px');txt(PLAYS[E.idx].name,62,118,'700 20px '+FD,C.lamp,'left');ls('0px');
+  // veld
+  rr(EX0,EY0,FW,FH,10);ctx.fillStyle='#1f4a2a';ctx.fill();
+  ctx.save();rr(EX0,EY0,FW,FH,10);ctx.clip();
+  ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;for(let k=5;k<25;k+=5)line(ex(k),EY0,ex(k),EY0+FH);
+  ctx.strokeStyle='rgba(255,255,255,.18)';for(let k=-5;k<=15;k+=5)line(EX0,ey(k),EX0+FW,ey(k));
+  ctx.strokeStyle=C.los;ctx.lineWidth=3;line(EX0,ey(0),EX0+FW,ey(0));
+  ctx.restore();
+  for(let k=-5;k<=15;k+=5)txt(k===0?'LOS':(k>0?'+':'')+k,EX0-12,ey(k),'700 15px '+FD,k===0?C.los:C.dim,'right','middle');
+  // routes
+  for(const id of EIDS){
+    const o=E.f[id],rt=eRoute(E,id),col=id==='Q'?C.lamp:GC[PB[id]],pts=[[o[0],o[1]],...rt];
+    if(pts.length<2)continue;
+    ctx.save();ctx.globalAlpha=E.sel===id?1:0.6;ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=E.h===id?7:id==='Q'?2.5:3.5;ctx.lineJoin='round';ctx.lineCap='round';
+    if(id==='Q')ctx.setLineDash([6,6]);
+    ctx.beginPath();ctx.moveTo(ex(pts[0][1]),ey(pts[0][0]));for(const q of pts.slice(1))ctx.lineTo(ex(q[1]),ey(q[0]));ctx.stroke();ctx.setLineDash([]);
+    for(const q of rt){ctx.beginPath();ctx.arc(ex(q[1]),ey(q[0]),4,0,Math.PI*2);ctx.fill();}
+    if(id!=='Q'){const e=pts[pts.length-1],pv=pts[pts.length-2],a=Math.atan2(ey(e[0])-ey(pv[0]),ex(e[1])-ex(pv[1])),X=ex(e[1]),Y=ey(e[0]);
+      if(o[3]!==0){ctx.beginPath();ctx.moveTo(X+Math.cos(a)*11,Y+Math.sin(a)*11);ctx.lineTo(X+Math.cos(a+2.4)*12,Y+Math.sin(a+2.4)*12);ctx.lineTo(X+Math.cos(a-2.4)*12,Y+Math.sin(a-2.4)*12);ctx.closePath();ctx.fill();}
+      else{const b=a+Math.PI/2;ctx.lineWidth=4;line(X-Math.cos(b)*11,Y-Math.sin(b)*11,X+Math.cos(b)*11,Y+Math.sin(b)*11);}}
+    ctx.restore();
+  }
+  // spelers
+  for(const id of EIDS){
+    const o=E.f[id],X=ex(o[1]),Y=ey(o[0]);
+    if(E.sel===id){ctx.strokeStyle=C.lamp;ctx.lineWidth=3;ctx.beginPath();ctx.arc(X,Y,21,0,Math.PI*2);ctx.stroke();}
+    if(id==='Q'){ctx.beginPath();ctx.arc(X,Y,14,0,Math.PI*2);ctx.fillStyle=C.lamp;ctx.fill();txt('Q',X,Y+1,'800 16px '+FD,'#1a1405','center','middle');}
+    else{glyph(PB[id],X,Y,14);txt(id,X+20,Y-16,'800 16px '+FD,C.chalk,'left','middle');}
+    if(E.h===id)txt('BAL',X,Y+26,'700 13px '+FD,C.lamp,'center','middle');
+  }
+  // cursor
+  {const X=ex(l),Y=ey(d);ctx.strokeStyle='#ffffff';ctx.lineWidth=2;line(X-16,Y,X-5,Y);line(X+5,Y,X+16,Y);line(X,Y-16,X,Y-5);line(X,Y+5,X,Y+16);
+   txt((d>0?'+':'')+d+' yd · '+l,X+20,Y+20,'600 14px '+FB,'#c9d3cd','left','middle');}
+  // spelerslijst
+  ls('3px');txt('SPELERS',60,200,'700 17px '+FD,C.lamp,'left','middle');ls('0px');
+  EIDS.forEach((id,i)=>{const y=226+i*62,s=E.sel===id,n=eRoute(E,id).length;
+    rr(56,y,380,52,12);ctx.fillStyle=s?'#18231d':C.card;ctx.fill();ctx.strokeStyle=s?C.lamp:C.rim;ctx.lineWidth=s?2:1;ctx.stroke();
+    if(id==='Q'){ctx.beginPath();ctx.arc(84,y+26,12,0,Math.PI*2);ctx.fillStyle=C.lamp;ctx.fill();txt('Q',84,y+27,'800 14px '+FD,'#1a1405','center','middle');}
+    else glyph(PB[id],84,y+26,13);
+    txt(ENAME[id],108,y+19,'700 18px '+FB,C.chalk,'left','middle');
+    txt(n?(n+(n>1?' routepunten':' routepunt')+(id!=='Q'?(E.f[id][3]===0?' · stopt':' · loopt door'):'')):(id==='Q'?'blijft staan':'nog geen route'),108,y+38,'500 14px '+FB,C.dim,'left','middle');
+    if(E.h===id)txt('BALDRAGER',428,y+26,'700 13px '+FD,C.lamp,'right','middle');
+  });
+  txt(E.h?'RUN · handoff naar '+E.h:'PASSPLAY',60,560,'700 20px '+FD,E.h?C.red:'#3fdcaa','left','middle');
+  wrapText(E.h?'Laat de route van '+E.h+' vlak langs de QB lopen: daar krijgt hij de bal.':'Met L2 maak je van de gekozen speler de baldrager (run).',60,592,370,22,'500 15px '+FB,C.dim);
+  // modus en besturing
+  const rx=1160;ls('3px');txt('MODUS',rx,200,'700 17px '+FD,C.lamp,'left','middle');ls('0px');
+  ['pos','route'].forEach((m,i)=>{const on=E.mode===m,x=rx+i*190;rr(x,216,176,44,22);ctx.fillStyle=on?'rgba(255,181,71,.18)':'transparent';ctx.fill();ctx.strokeStyle=on?C.lamp:C.rim;ctx.lineWidth=on?2:1;ctx.stroke();
+    txt(m==='pos'?'POSITIE':'ROUTE',x+88,239,'700 18px '+FD,on?C.chalk:C.dim,'center','middle');});
+  const rows=[[['LS'],'Cursor bewegen (R2 = snel)'],[['L1','R1'],'Vorige / volgende speler'],[['SQ'],'Wissel positie / route'],[['X'],E.mode==='pos'?'Zet speler op de cursor':'Routepunt toevoegen'],[['O'],'Laatste routepunt weg'],[['TRI'],'Einde: doorlopen of stoppen'],[['L2'],'Handoff naar deze speler'],[['OPT'],'Opslaan of annuleren']];
+  rows.forEach(([bs,t],i)=>{const y=296+i*40;let gx=rx;bs.forEach(b=>{const gw=glyphW(b,13);glyph(b,gx+gw/2,y,13);gx+=gw+6;});txt(t,rx+84,y+1,'500 17px '+FB,'#d5ddd8','left','middle');});
+  wrapText('Klik op een speler om hem te kiezen. Met de muis kun je ook direct in het veld klikken. Toetsenbord: pijltjes, Spatie = ✕, 3 = □, 2 = ◯, 4 = △, Tab/R = L1/R1, H = L2, Esc = menu.',rx,640,380,21,'500 14px '+FB,C.dim);
+  if(E.menu){
+    ctx.fillStyle='rgba(6,10,8,.8)';ctx.fillRect(0,0,W,H);rr(560,280,480,320,18);ctx.fillStyle=C.panel;ctx.fill();ctx.strokeStyle=C.rim;ctx.lineWidth=1.5;ctx.stroke();
+    ls('3px');txt(PLAYS[E.idx].name,800,334,'italic 800 34px '+FD,C.chalk,'center','middle');ls('0px');
+    ['Opslaan en terug','Annuleren','Play leegmaken'].forEach((t,i)=>{const y=376+i*62,s=E.menuSel===i;rr(600,y,400,48,12);ctx.fillStyle=s?'#18231d':'transparent';ctx.fill();if(s){ctx.strokeStyle=i===2?C.red:C.lamp;ctx.lineWidth=2;ctx.stroke();}
+      txt(t,800,y+25,'600 21px '+FB,s?(i===2?C.red:C.chalk):C.dim,'center','middle');});
+    drawHintRow([[['DP'],'Kies'],[['X'],'Bevestig'],[['O'],'Terug naar de Play Maker']],830);
+  }
+}
+
 /* ---------- update ---------- */
 function update(dt){
   G.time+=dt;pollInput(dt);
@@ -595,6 +724,7 @@ function update(dt){
     return;
   }
   if(G.screen==='tutorial'){if(I.pressed.X)newGame();else if(I.pressed.O)G.screen='teams';return;}
+  if(G.editor){editorUpdate(dt);return;}
   if(I.pressed.OPT&&G.phase!=='halftime'&&G.phase!=='final'){
     if(G.paused)G.paused=false;else{G.paused=true;G.pauseReason='';G.pauseView='menu';G.pauseSel=0;}
     return;
@@ -615,6 +745,8 @@ function update(dt){
       if(I.navY)G.sel=(G.sel+3*I.navY+PLAYS.length)%PLAYS.length;
       if(I.pressed.R1)G.sel=(G.sel+6)%PLAYS.length;
       if(I.pressed.L1)G.sel=(G.sel-6+PLAYS.length)%PLAYS.length;
+      {const cp=PLAYS[G.sel];
+      if(cp.custom&&(I.pressed.TRI||(I.pressed.X&&cp.empty))){openEditor(G.sel);break;}}
       if(I.pressed.X){if(playAllowed(G.sel)){G.lastPlay=G.sel;startPresnap(PLAYS[G.sel],cpuPickCover());}else banner('GEEN RUN','In een no-run zone mag je alleen passen',C.red,false,1.4);}
       break;
     case 'defcall':
@@ -877,6 +1009,7 @@ function drawPlayDiagram(play,x,y,w,h){
     const [d0,l0,rt,cont]=f[id],col=GC[PB[id]],pts=[{x:d0,y:l0},...rt.map(([a,b])=>({x:a,y:b}))];
     ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=play.h===id?6:3;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();ctx.moveTo(mx(pts[0].y),my(pts[0].x));
     for(const p of pts.slice(1))ctx.lineTo(mx(p.y),my(p.x));ctx.stroke();ctx.lineWidth=3;
+    if(pts.length<2)continue;
     const e=pts[pts.length-1],pv=pts[pts.length-2],a=Math.atan2(my(e.x)-my(pv.x),mx(e.y)-mx(pv.y)),ex=mx(e.y),ey=my(e.x);
     if(cont!==0){ctx.beginPath();ctx.moveTo(ex+Math.cos(a)*6,ey+Math.sin(a)*6);ctx.lineTo(ex+Math.cos(a+2.4)*8,ey+Math.sin(a+2.4)*8);ctx.lineTo(ex+Math.cos(a-2.4)*8,ey+Math.sin(a-2.4)*8);ctx.closePath();ctx.fill();}
     else{const b=a+Math.PI/2;line(ex-Math.cos(b)*7,ey-Math.sin(b)*7,ex+Math.cos(b)*7,ey+Math.sin(b)*7);}
@@ -893,8 +1026,16 @@ function drawPlaycall(){
     const i=page*6+k;if(i>=PLAYS.length)break;const p=PLAYS[i];
     const cx=125+(k%3)*470,cy=230+Math.floor(k/3)*260,ok=playAllowed(i),sel=G.sel===i;
     card(cx,cy,440,230,sel,false);
+    if(p.custom&&p.empty){
+      rr(cx+14,cy+14,250,202,10);ctx.setLineDash([8,6]);ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([]);
+      txt('+',cx+139,cy+112,'300 90px '+FB,'rgba(255,255,255,.45)','center','middle');
+      ls('2px');txt(p.name,cx+282,cy+52,'italic 800 26px '+FD,C.chalk,'left');ls('0px');
+      wrapText('Nog leeg. Ontwerp je eigen play in de Play Maker.',cx+282,cy+84,144,22,'500 16px '+FB,'#b9c4bd');
+      glyph('X',cx+296,cy+200,12);txt('Maken',cx+314,cy+201,'600 16px '+FB,C.chalk,'left','middle');continue;
+    }
     drawPlayDiagram(p,cx+14,cy+14,250,202);
-    ls('2px');txt(p.name,cx+282,cy+52,'italic 800 30px '+FD,ok?C.chalk:C.dim,'left');ls('0px');
+    ls('2px');fitTxt(p.name,cx+282,cy+52,146,30,'italic 800',ok?C.chalk:C.dim,'left','alphabetic');ls('0px');
+    if(p.custom){glyph('TRI',cx+420,cy+28,11);}
     wrapText(p.desc,cx+282,cy+84,144,22,'500 16px '+FB,ok?'#b9c4bd':'#5f6b65');
     {const run=!!p.run;rr(cx+282,cy+188,64,26,13);ctx.fillStyle=run?'rgba(255,109,109,.18)':'rgba(63,220,170,.16)';ctx.fill();ctx.strokeStyle=run?C.red:'#3fdcaa';ctx.lineWidth=1.5;ctx.stroke();txt(run?'RUN':'PASS',cx+314,cy+202,'700 15px '+FD,run?C.red:'#3fdcaa','center','middle');
      if(!ok)txt('NO-RUN ZONE',cx+356,cy+202,'700 14px '+FD,C.red,'left','middle');}
@@ -997,6 +1138,7 @@ function drawTeams(){
   drawHintRow([[['DP'],'Rij en team kiezen'],[['X'],'Verder'],[['O'],'Terug']],780);
 }
 function drawGame(){
+  if(G.editor){drawEditor();drawStatus();return;}
   const oT=teamOf(G.poss),dT=teamOf(1-G.poss);
   if(BEHIND)drawFieldBehind(oT,dT);else drawField(oT,dT,1);
   drawLines();
@@ -1026,7 +1168,7 @@ function drawGame(){
   if(G.phase==='presnap'&&G.audible)drawAudible();
   // hints
   let h=[];const userOff=G.poss===0;
-  if(G.phase==='playcall')h=[[['DP'],'Kies play'],[['L1','R1'],'Vorige / volgende pagina'],[['X'],'Bevestig'],[['OPT'],'Pauze']];
+  if(G.phase==='playcall')h=PLAYS[G.sel].custom?[[['DP'],'Kies play'],[['L1','R1'],'Pagina'],[['X'],PLAYS[G.sel].empty?'Maken':'Bevestig'],[['TRI'],'Bewerken in Play Maker']]:[[['DP'],'Kies play'],[['L1','R1'],'Vorige / volgende pagina'],[['X'],'Bevestig'],[['OPT'],'Pauze']];
   else if(G.phase==='defcall')h=[[['DP'],'Kies dekking'],[['X'],'Bevestig'],[['OPT'],'Pauze']];
   else if(G.phase==='pat')h=[[['DP'],'Kies'],[['X'],'Bevestig']];
   else if(G.phase==='presnap')h=userOff?(G.audible?[[['SQ','X','O'],'Kies play'],[['TRI'],'Annuleer']]:[[['X'],'Snap'],[['TRI'],'Audible'],[['R3'],'Camera'],[['OPT'],'Pauze']]):[[['L1'],'Wissel speler'],[['R3'],'Camera'],[[],'Tegenstander snapt de bal…']];
