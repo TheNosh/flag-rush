@@ -1,0 +1,21 @@
+{
+  "height": 1.95,
+  "rotY": 1.5707963,
+  "jersey": "M_Main",
+  "hipsBone": "pelvis",
+  "chestBone": "spine_03",
+  "handBone": "hand_r",
+  "jogSpeed": 3.3,
+  "sprintFrom": 3.6,
+  "sprintSpeed": 4.5,
+  "clips": {
+    "idle": "Idle_Loop",
+    "jog": "Jog_Fwd_Loop",
+    "sprint": "Sprint_Loop",
+    "walk": "Walk_Loop",
+    "back": null, "strafeL": null, "strafeR": null,
+    "juke": null, "spin": null, "hesi": null,
+    "throw": null, "catch": null, "pull": null, "miss": null,
+    "cheer": "Dance_Loop"
+  }
+}
