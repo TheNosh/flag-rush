@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIR = path.join(ROOT, 'mixamo');
@@ -58,6 +59,35 @@ for (const k of CLIPS) {
   base.traverse((o) => { if (o.isBone && !keep.has(o)) dup.push(o); });
   for (const b of dup) b.removeFromParent();
   console.log('skelet samengevoegd:', skinned.length, 'meshes, dubbele botten verwijderd:', dup.length);
+}
+
+// De X Bot heeft ~150.000 hoekpunten per speler; met 10 spelers (en schaduwen) is dat te zwaar voor gewone laptops.
+// Vereenvoudig elke mesh. meshopt hergebruikt bestaande hoekpunten, dus de skinning-gewichten blijven kloppen.
+{
+  const { MeshoptSimplifier } = await import('meshoptimizer');
+  await MeshoptSimplifier.ready;
+  const KEEP = Number(process.env.KEEP || 0.35); // aandeel driehoeken dat overblijft
+  base.traverse((o) => {
+    if (!o.isSkinnedMesh) return;
+    // de FBX levert losse driehoeken (3 hoekpunten per driehoek): eerst gelijke hoekpunten samenvoegen
+    const before = o.geometry.attributes.position.count;
+    o.geometry = mergeVertices(o.geometry, 1e-3);
+    const g = o.geometry, pos = g.attributes.position;
+    console.log(o.name || 'mesh', 'samengevoegd', before, '->', pos.count, 'hoekpunten');
+    const idx = g.index ? Uint32Array.from(g.index.array) : Uint32Array.from({ length: pos.count }, (_, i) => i);
+    const target = Math.max(3000, Math.floor(idx.length * KEEP / 3) * 3);
+    const [simp, err] = MeshoptSimplifier.simplify(idx, new Float32Array(pos.array), 3, target, 0.03, ['LockBorder']);
+    // ongebruikte hoekpunten verwijderen
+    const used = new Map(); const order = [];
+    for (const i of simp) if (!used.has(i)) { used.set(i, order.length); order.push(i); }
+    for (const name of Object.keys(g.attributes)) {
+      const a = g.attributes[name], arr = new a.array.constructor(order.length * a.itemSize);
+      for (let n = 0; n < order.length; n++) for (let c = 0; c < a.itemSize; c++) arr[n * a.itemSize + c] = a.array[order[n] * a.itemSize + c];
+      g.setAttribute(name, new THREE.BufferAttribute(arr, a.itemSize, a.normalized));
+    }
+    g.setIndex(new THREE.BufferAttribute(Uint32Array.from(simp, (i) => used.get(i)), 1));
+    console.log(o.name || 'mesh', 'driehoeken', idx.length / 3, '->', simp.length / 3, 'hoekpunten', pos.count, '->', order.length, 'fout', err.toFixed(4));
+  });
 }
 
 let meshes = 0, bones = 0;
