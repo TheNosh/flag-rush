@@ -207,6 +207,9 @@ export class GltfCharacterView extends CharacterView {
     const jogLike = (k) => { W.jog += W[k]; W[k] = 0; };
     if (!A.sprint) jogLike('sprint');
     if (!A.back) jogLike('back'); if (!A.strafeL) jogLike('strafeL'); if (!A.strafeR) jogLike('strafeR');
+    // gewichten zacht laten overlopen: een plotselinge richting- of snelheidswissel mag geen sprong in de pose geven
+    const Ws = this.Ws || (this.Ws = { ...W });
+    for (const k in W) { Ws[k] = damp(Ws[k], W[k], 11, dt); W[k] = Ws[k]; }
     // acties dempen de loopanimatie
     let act = 0;
     for (const a of this.acts) { if (this.actions[a.name]) act = Math.max(act, a.name === 'cheer' ? 1 : Math.pow(Math.sin(Math.PI * clamp(a.t / a.dur, 0, 1)), 0.5)); }
