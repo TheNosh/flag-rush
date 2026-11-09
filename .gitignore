@@ -2,3 +2,5 @@
 dist
 .vite
 *.log
+
+mixamo/

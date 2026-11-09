@@ -1,21 +1,21 @@
 {
   "height": 1.95,
   "rotY": 1.5707963,
-  "jersey": "M_Main",
-  "hipsBone": "pelvis",
-  "chestBone": "spine_03",
-  "handBone": "hand_r",
-  "jogSpeed": 3.3,
+  "dress": true,
+  "hipsBone": "^mixamorigHips$",
+  "chestBone": "^mixamorigSpine2$",
+  "handBone": "^mixamorigRightHand$",
+  "jogSpeed": 2.6,
   "sprintFrom": 3.6,
-  "sprintSpeed": 4.5,
+  "sprintSpeed": 3.5,
+  "backSpeed": 2.7,
+  "strafeSpeed": 3.8,
+  "dur": { "juke": 0.55, "spin": 0.8, "throw": 0.55, "catch": 1.0, "cheer": 2.9, "miss": 0.9 },
   "clips": {
-    "idle": "Idle_Loop",
-    "jog": "Jog_Fwd_Loop",
-    "sprint": "Sprint_Loop",
-    "walk": "Walk_Loop",
-    "back": null, "strafeL": null, "strafeR": null,
-    "juke": null, "spin": null, "hesi": null,
-    "throw": null, "catch": null, "pull": null, "miss": null,
-    "cheer": "Dance_Loop"
+    "idle": "idle", "jog": "jog", "sprint": "sprint", "walk": null,
+    "back": "back", "strafeL": "strafeL", "strafeR": "strafeR",
+    "juke": "juke", "spin": "spin", "hesi": null,
+    "throw": "throw", "catch": "catch", "pull": null,
+    "cheer": "cheer", "miss": "miss"
   }
 }

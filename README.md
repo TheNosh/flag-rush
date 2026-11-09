@@ -82,7 +82,7 @@ Spellogica kent alleen `(x, y)` in yards (lengte, breedte); de renderer zet dat 
 | Three.js | https://threejs.org | MIT |
 | Vite | https://vite.dev | MIT |
 | Lettertypen Saira Condensed en Barlow (via Google Fonts) | Google Fonts | SIL OFL 1.1 |
-| Spelermodel + animaties `public/models/player.glb` (UAL1_Standard.glb) | [Quaternius Universal Animation Library (Standard)](https://quaternius.itch.io/universal-animation-library) | CC0 |
+| Spelermodel (X Bot) + animaties `public/models/player.glb` (gemaakt met `tools/mixamo-to-glb.mjs`) | [Mixamo](https://www.mixamo.com) (Adobe) | Mixamo-voorwaarden: gratis te gebruiken in projecten, ook commercieel; de ruwe FBX-bestanden (`mixamo/`) staan niet in de repository en mogen niet los worden doorgegeven |
 | Teamlogo's (`public/logos`) | aangeleverd door de eigenaar (afkomstig van tournifyapp.com) | rechten bij de teams / eigenaar |
 
 **Spelers:** de 3D-spelers zijn in stap 1 volledig procedureel (gewrichten + pose-blending in `render/character.js`),
@@ -90,6 +90,25 @@ dus er zijn nog geen externe modelbestanden gebruikt. Quaternius-modellen (CC0) 
 eigen gebruiksvoorwaarden) kunnen daarna via dezelfde API (`update`, `trigger`, `pullFlag`) worden ingehangen. Zet dan het
 bestand in `public/models/` en vul hier de bron en licentie in.
 
+
+## Mixamo-animaties opnieuw bouwen
+
+`public/models/player.glb` is gebouwd uit Mixamo-FBX-bestanden in de map `mixamo/` (niet in git). Download bij Mixamo met karakter **X Bot**,
+formaat *FBX Binary*, 30 fps, *Keyframe Reduction: none*, bij loop-animaties *In Place* aan. `stance.fbx` met **With Skin**, de rest **Without Skin**:
+
+| Bestand | Mixamo-animatie |
+|---|---|
+| `stance.fbx` | Football Stance (levert het personage) |
+| `idle.fbx` | Idle (Standing Idle) |
+| `jog.fbx` · `sprint.fbx` | Jog Forward (Soccer) · Sprint (Standard Sprint) |
+| `back.fbx` | Running Backward (Backwards Running) |
+| `strafeL.fbx` · `strafeR.fbx` | Left Strafe · Right Strafe (Running Strafe) |
+| `juke.fbx` · `spin.fbx` | Dodging Right (in place) · Soccer Spin |
+| `throw.fbx` | Quarterback Pass (de worp wordt eruit geknipt, zie `TRIM` in het script) |
+| `catch.fbx` | Goalkeeper Catch (Medium Height) |
+| `cheer.fbx` · `miss.fbx` | Cheering (two fists pump) · Jogging Stumble (in place) |
+
+Daarna: `node tools/mixamo-to-glb.mjs`. Flag pull en hesitation hebben geen Mixamo-clip en blijven procedureel.
 
 ## Echte spelermodellen (GLB) gebruiken
 

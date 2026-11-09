@@ -70,6 +70,17 @@ function teamMaterial(base, team, kind) {
 }
 
 
+// ---- botnamen: Mixamo ("mixamorigLeftArm") wordt vertaald naar de namen die de rest van de code gebruikt ("upperarm_l")
+const MX = { Hips: 'pelvis', Spine: 'spine_01', Spine1: 'spine_02', Spine2: 'spine_03', Neck: 'neck_01', Head: 'Head', HeadTop_End: 'head_end' };
+const MXL = { Shoulder: 'clavicle', Arm: 'upperarm', ForeArm: 'lowerarm', Hand: 'hand', UpLeg: 'thigh', Leg: 'calf', Foot: 'foot', ToeBase: 'ball', Toe_End: 'ball' };
+function canon(n) {
+  const m = /^mixamorig:?(.*)$/.exec(n); if (!m) return n;
+  const k = m[1]; if (MX[k]) return MX[k];
+  const s = /^(Left|Right)(.+)$/.exec(k);
+  if (s && MXL[s[2]]) return MXL[s[2]] + (s[1] === 'Left' ? '_l' : '_r');
+  return k.toLowerCase(); // vingers e.d.: huid
+}
+
 // ---- kleding via vertexkleuren
 const SKIN_TONES = [0xe0b394, 0xc68863, 0x8d5a3b, 0x5b3a26];
 let dressMat = null;
@@ -89,7 +100,7 @@ function dressGeometry(mesh, team, skinIdx) {
   for (let i = 0; i < pos.count; i++) {
     let best = 0, bw = -1;
     for (let k = 0; k < 4; k++) { const w = [sw.getX, sw.getY, sw.getZ, sw.getW][k].call(sw, i); if (w > bw) { bw = w; best = [si.getX, si.getY, si.getZ, si.getW][k].call(si, i); } }
-    const n = (bones[best] && bones[best].name || '').toLowerCase(), h = (pos.getY(i) - minY) / H;
+    const n = canon(bones[best] && bones[best].name || '').toLowerCase(), h = (pos.getY(i) - minY) / H;
     if (/spine|clavicle|upperarm/.test(n)) c.copy(jersey);
     else if (/pelvis/.test(n)) c.copy(h > 0.47 ? shorts : skin);
     else if (/thigh/.test(n)) c.copy(h > 0.37 ? shorts : skin);
@@ -176,7 +187,12 @@ export class GltfCharacterView extends CharacterView {
   trigger(name, data = {}) {
     super.trigger(name, data);
     const a = this.actions[name];
-    if (a && ONESHOT.includes(name)) { a.reset(); a.setEffectiveWeight(1); a.play(); }
+    if (a && ONESHOT.includes(name)) {
+      // de clip bepaalt hoe lang de actie duurt (player.json "dur"); de animatie wordt daarop uitgerekt
+      const act = this.acts[this.acts.length - 1];
+      if (act && CFG.dur && CFG.dur[name]) act.dur = CFG.dur[name];
+      a.reset(); a.setEffectiveWeight(1); a.setEffectiveTimeScale(act ? this.clips[name].duration / act.dur : 1); a.play();
+    }
   }
 
   poseBody(dt, body, sp, s, moving) {
@@ -250,7 +266,7 @@ export class GltfCharacterView extends CharacterView {
   }  bonePose(dt, wF, wB, wS) {
     if (!this.bn) {
       this.bn = {}; const want = ['spine_01', 'spine_02', 'spine_03', 'neck_01', 'Head', 'upperarm_l', 'lowerarm_l', 'upperarm_r', 'lowerarm_r', 'thigh_l', 'thigh_r'];
-      this.model.traverse((o) => { if (o.isBone && want.includes(o.name)) this.bn[o.name] = o; });
+      this.model.traverse((o) => { if (o.isBone && want.includes(canon(o.name))) this.bn[canon(o.name)] = o; });
       this.yaw = 0;
     }
     const b = this.bn;
@@ -273,6 +289,7 @@ export class GltfCharacterView extends CharacterView {
     }
 
     for (const a of this.acts) {
+      if (this.clips[a.name]) continue; // echte animatieclip aanwezig: geen procedurele overlay
       const u = clamp(a.t / a.dur, 0, 1), w = Math.pow(Math.sin(Math.PI * u), 0.6);
       switch (a.name) {
         case 'throw': {
