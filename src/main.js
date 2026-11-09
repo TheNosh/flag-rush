@@ -67,7 +67,11 @@ function updateConfetti(dt) {
 
 // ---------------------------------------------------------------- weergave-schaal
 let scaleU = 1, offX = 0, offY = 0, dpr = 1;
+// Dynamische resolutie: haalt het spel de framerate niet, dan rendert de 3D-scène met een lagere resolutie (UI blijft scherp).
+const MAX_PR = Math.min(window.devicePixelRatio || 1, 2);
+const adapt = { pr: MAX_PR, bad: Infinity, acc: 0, n: 0, good: 0, last: 0, fps: 0 };
 function onResize() {
+  renderer.setPixelRatio(adapt.pr);
   resizeTo(renderer, camera);
   dpr = Math.min(window.devicePixelRatio || 1, 2);
   const w = window.innerWidth, h = window.innerHeight;
@@ -135,6 +139,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000) * (window.__fr?.timeScale ?? 1); last = now;
 
+  const P0 = performance.now();
   input.poll(dt);
   const mode = camMode();
   const ctl = game.ctl;
@@ -143,6 +148,7 @@ function frame(now) {
   ctl.flick = input.rflick ? stickToField(input.rflick.x, input.rflick.y, sm) : null;
 
   game.update(dt);
+  const P1 = performance.now();
 
   for (const e of game.fx.splice(0)) {
     if (e.type === 'rebuild') rebuildViews();
@@ -161,6 +167,7 @@ function frame(now) {
   }
   updateBall(dt);
   updateConfetti(dt);
+  const P2 = performance.now();
 
   const showLines = playing && !G.editor;
   losLine.visible = showLines; losLine.position.x = G.los;
@@ -186,14 +193,30 @@ function frame(now) {
   }
   followShadow(sun, focus.x, focus.y);
 
+  const P3 = performance.now();
   renderer.render(scene, camera);
+  const P4 = performance.now();
 
   uictx.setTransform(dpr, 0, 0, dpr, 0, 0);
   uictx.translate(offX, offY); uictx.scale(scaleU, scaleU);
   drawOverlay(uictx, game, input, project);
+  const P5 = performance.now();
+  // meetgegevens (gemiddelde in ms) voor het opsporen van haperingen: __fr.perf
+  const pf = (window.__fr.perf ||= { game: 0, views: 0, cam: 0, render: 0, overlay: 0, n: 0 }), k = 0.05;
+  pf.game += (P1 - P0 - pf.game) * k; pf.views += (P2 - P1 - pf.views) * k; pf.cam += (P3 - P2 - pf.cam) * k; pf.render += (P4 - P3 - pf.render) * k; pf.overlay += (P5 - P4 - pf.overlay) * k; pf.n++;
 
-  fpsN++; fpsAcc += dt;
-  if (fpsAcc > 0.5) { fpsEl.textContent = Math.round(fpsN / fpsAcc) + ' fps'; fpsAcc = 0; fpsN = 0; }
+  // echte framerate meten (niet via dt, dat is begrensd) en de 3D-resolutie daarop afstellen
+  const A = adapt;
+  if (A.last) { A.acc += now - A.last; A.n++; }
+  A.last = now;
+  if (A.acc > 1000) {
+    const ms = A.acc / A.n; A.fps = 1000 / ms; A.acc = 0; A.n = 0;
+    fpsEl.textContent = Math.round(A.fps) + ' fps' + (A.pr < MAX_PR - 0.01 ? ' · ' + Math.round(A.pr / MAX_PR * 100) + '%' : '');
+    if (document.hidden || now < 6000) { A.good = 0; } // eerste seconden (laden, shaders) niet meetellen
+    else if (ms > 24 && A.pr > 0.55) { A.bad = A.pr; A.pr = Math.max(0.55, A.pr * 0.85); A.good = 0; onResize(); } // trager dan ~42 fps: resolutie omlaag
+    else if (ms < 18.5 && A.pr * 1.1 < A.bad && A.pr < MAX_PR) { if (++A.good >= 6) { A.pr = Math.min(MAX_PR, A.pr * 1.1); A.good = 0; onResize(); } }
+    else A.good = 0;
+  }
 }
 
 function updateBall(dt) {
