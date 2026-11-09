@@ -22,6 +22,7 @@ globalThis.FileReader = class {
 // stance en hike worden (nog) niet gebruikt en blijven buiten het model. De worp is een lange scramble: we knippen
 // alleen de worp zelf eruit (afgooimoment bij 5,50 s, gemeten als snelste hand t.o.v. de heupen).
 const CLIPS = ['idle', 'jog', 'sprint', 'back', 'strafeL', 'strafeR', 'juke', 'spin', 'throw', 'catch', 'cheer', 'miss'];
+const LOOPS = ['idle', 'jog', 'sprint', 'back', 'strafeL', 'strafeR'];
 const TRIM = { throw: [160, 177] }; // beeldframes @30 fps
 const loader = new FBXLoader();
 const load = (name) => {
@@ -39,6 +40,20 @@ for (const k of CLIPS) {
   clip.tracks = clip.tracks.filter((t) => t.name.endsWith('.quaternion') || t.name === 'mixamorigHips.position');
   if (TRIM[k]) clip = THREE.AnimationUtils.subclip(clip, k, TRIM[k][0], TRIM[k][1], 30);
   clip.resetDuration();
+  // Root-beweging eruit: het spel verplaatst de speler zelf. Sprint en spin bevatten van zichzelf een verplaatsing van meerdere
+  // meters, waardoor de speler bij elke herhaling naar voren sprong en weer terugsprong.
+  // Loops: de lineaire drift weghalen (begin = eind). Losse acties: horizontaal op de beginpositie houden.
+  const hips = clip.tracks.find((t) => t.name === 'mixamorigHips.position');
+  if (hips) {
+    const v = hips.values, n = hips.times.length, last = hips.times[n - 1] || 1;
+    const loop = LOOPS.includes(k);
+    const x0 = v[0], z0 = v[2], dx = v[(n - 1) * 3] - x0, dz = v[(n - 1) * 3 + 2] - z0;
+    for (let i = 0; i < n; i++) {
+      if (loop) { const f = hips.times[i] / last; v[i * 3] -= dx * f; v[i * 3 + 2] -= dz * f; }
+      else { v[i * 3] -= v[i * 3] - x0; v[i * 3 + 2] -= v[i * 3 + 2] - z0; }
+    }
+    if (Math.hypot(dx, dz) * (1.95 / 180.9) > 0.05) console.log('   root-beweging verwijderd:', (Math.hypot(dx, dz) * (1.95 / 180.9)).toFixed(2), 'eenheden over', clip.duration.toFixed(2), 's');
+  }
   animations.push(clip);
   console.log(k.padEnd(8), clip.duration.toFixed(2) + ' s', clip.tracks.length + ' tracks');
 }
